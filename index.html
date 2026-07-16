@@ -14,41 +14,28 @@
         
         /* Custom UI Panel Styling */
         .custom-control-panel {
-            background-color: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            width: 220px;
-            max-height: 90vh;
-            overflow-y: auto;
+            background-color: white; padding: 15px; border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4); width: 230px; max-height: 90vh; overflow-y: auto;
         }
         .panel-header {
-            font-size: 15px;
-            font-weight: bold;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #ccc;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
+            font-size: 15px; font-weight: bold; display: flex; justify-content: space-between;
+            align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-bottom: 10px;
         }
         .toggle-btn {
-            background-color: #f4f4f4;
-            border: 1px solid #999;
-            border-radius: 3px;
-            cursor: pointer;
-            width: 24px;
-            height: 24px;
-            font-weight: bold;
+            background-color: #f4f4f4; border: 1px solid #999; border-radius: 3px;
+            cursor: pointer; width: 24px; height: 24px; font-weight: bold;
         }
         .section-title { font-weight: bold; font-size: 14px; margin: 10px 0 5px 0; color: #111; border-bottom: 1px solid #eee; }
         .forecast-section { margin-bottom: 10px; font-size: 13px; }
         .layer-item { font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; cursor: pointer; }
         .layer-item input { margin-right: 8px; }
         
-        select[multiple] { width: 100%; padding: 5px; font-family: inherit; border: 1px solid #ccc; border-radius: 3px; }
+        /* Checkbox Date Selector */
+        .date-list { border: 1px solid #ccc; border-radius: 3px; padding: 5px; background: #fafafa; max-height: 100px; overflow-y: auto;}
+        
         .play-btn { width: 100%; padding: 8px; background-color: #0078A8; color: white; border: none; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; }
         .play-btn:hover { background-color: #005a7f; }
+        .play-btn:disabled { background-color: #999; cursor: not-allowed; }
 
         /* Dynamic Legend Styling */
         .legend-box { margin-top: 15px; padding-top: 10px; border-top: 2px solid #ccc; display: none; }
@@ -58,17 +45,18 @@
 
         /* Grid Tooltip Styling */
         .grid-tooltip { background: rgba(0, 0, 0, 0.75); border: none; color: white; font-weight: bold; border-radius: 4px; }
+        
+        /* Animation Banner */
+        .date-banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; font-size: 18px; font-weight: bold; border-radius: 5px; display: none; z-index: 1000; pointer-events: none;}
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div id="dateBanner" class="date-banner">Date</div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- SECURITY WARNING ---
-        // Placing your API token here is NOT secure for public deployment on GitHub Pages.
-        // Anyone can view the page source and copy this token. 
         const GRIBSTREAM_API_TOKEN = "dc599c656f331c4c92c25c3d4855f0bdcfe6261c";
 
         // 1. Define Base Maps
@@ -79,7 +67,7 @@
         const esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 });
         const satelliteMap = L.layerGroup([esriSatellite, esriSatLabels]);
 
-        // 2. Initialize the Map
+        // 2. Initialize Map
         const map = L.map('map', { center: [4.2105, 101.9758], zoom: 5, layers: [blueOceanMap] });
 
         // 3. Create Overlays
@@ -100,21 +88,25 @@
             .then(res => res.json())
             .then(data => L.geoJSON(data, { style: { color: "#111", weight: 1.5, fillOpacity: 0 } }).addTo(countryBorders));
 
+        // Fixed Malaysia States GeoJSON Source
         const malaysiaStates = L.layerGroup();
-        fetch('https://gist.githubusercontent.com/jerryong/2b3952ba8311a3b5a19cb2b6e1596e73/raw/c5553e18a0edfc3a0bcf60fc313b2c2e0fce61ec/malaysia.geojson')
-            .then(res => res.json())
-            .then(data => L.geoJSON(data, { style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 } }).addTo(malaysiaStates));
+        fetch('https://raw.githubusercontent.com/mptwaktusolat/jakim.geojson/master/malaysia.state.geojson')
+            .then(res => {
+                if(!res.ok) throw new Error("Network Error");
+                return res.json();
+            })
+            .then(data => L.geoJSON(data, { style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 } }).addTo(malaysiaStates))
+            .catch(err => console.error("Error loading states:", err));
 
-        // 4. Forecast Data Layer Placeholder
-        let activeForecastLayer = L.layerGroup().addTo(map);
+        // Container for active visual forecast
+        let forecastVisualLayer = L.layerGroup().addTo(map);
 
-        // 5. Build Custom Control Panel
+        // 4. Custom Control Panel
         const CustomControl = L.Control.extend({
             options: { position: 'topright' },
             onAdd: function () {
                 const container = L.DomUtil.create('div', 'custom-control-panel');
-                L.DomEvent.disableClickPropagation(container);
-                L.DomEvent.disableScrollPropagation(container); 
+                L.DomEvent.disableClickPropagation(container); L.DomEvent.disableScrollPropagation(container); 
 
                 container.innerHTML = `
                     <div class="panel-header"><span>Map Controls</span><button id="toggleBtn" class="toggle-btn">-</button></div>
@@ -129,27 +121,24 @@
                         <label class="layer-item"><input type="checkbox" id="chkState"> Malaysia States</label>
 
                         <div class="section-title">Control for forecast data</div>
-                        <div class="forecast-section">
-                            <b>Models</b><br>
+                        <div class="forecast-section"><b>Models</b><br>
                             <label class="layer-item"><input type="radio" name="model" value="gfs" checked> GFS</label>
                             <label class="layer-item"><input type="radio" name="model" value="ecmwf"> ECMWF</label>
                         </div>
-                        <div class="forecast-section">
-                            <b>Parameter</b><br>
+                        <div class="forecast-section"><b>Parameter</b><br>
                             <label class="layer-item"><input type="radio" name="param" value="APCP"> Precipitation</label>
                             <label class="layer-item"><input type="radio" name="param" value="TMP" checked> Temperature</label>
                             <label class="layer-item"><input type="radio" name="param" value="WIND"> Wind</label>
                         </div>
-                        <div class="forecast-section">
-                            <b>Date (Max 3 day)</b><br>
-                            <select id="dateSelect" multiple size="6">
-                                <option value="2026-07-17">17 July 2026</option>
-                                <option value="2026-07-18">18 July 2026</option>
-                                <option value="2026-07-19">19 July 2026</option>
-                                <option value="2026-07-20">20 July 2026</option>
-                                <option value="2026-07-21">21 July 2026</option>
-                                <option value="2026-07-22">22 July 2026</option>
-                            </select>
+                        <div class="forecast-section"><b>Date (Max 3 days)</b><br>
+                            <div class="date-list">
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="17 July 2026"> 17 July 2026</label>
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="18 July 2026"> 18 July 2026</label>
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="19 July 2026"> 19 July 2026</label>
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="20 July 2026"> 20 July 2026</label>
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="21 July 2026"> 21 July 2026</label>
+                                <label class="layer-item"><input type="checkbox" name="f_date" value="22 July 2026"> 22 July 2026</label>
+                            </div>
                             <button id="playBtn" class="play-btn">Play / Animate</button>
                         </div>
 
@@ -166,10 +155,8 @@
         });
         map.addControl(new CustomControl());
 
-        // 6. UI Logic and Event Listeners
+        // 5. Logic and Interactivity
         document.addEventListener('DOMContentLoaded', () => {
-            
-            // Toggle panel visibility
             const toggleBtn = document.getElementById('toggleBtn');
             const panelContent = document.getElementById('panelContent');
             toggleBtn.onclick = () => {
@@ -178,93 +165,97 @@
                 toggleBtn.innerHTML = isHidden ? '-' : '+';
             };
 
-            // Base Map & Overlay switching
-            document.querySelectorAll('input[name="basemap"]').forEach(radio => {
-                radio.onchange = (e) => {
-                    if (e.target.value === 'ocean') { map.addLayer(blueOceanMap); map.removeLayer(satelliteMap); }
-                    else { map.addLayer(satelliteMap); map.removeLayer(blueOceanMap); }
-                };
+            // Base Map & Overlays Toggle
+            document.querySelectorAll('input[name="basemap"]').forEach(r => r.onchange = e => {
+                e.target.value === 'ocean' ? (map.addLayer(blueOceanMap), map.removeLayer(satelliteMap)) : (map.addLayer(satelliteMap), map.removeLayer(blueOceanMap));
             });
-            document.getElementById('chkGrid').onchange = (e) => e.target.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer);
-            document.getElementById('chkCountry').onchange = (e) => e.target.checked ? map.addLayer(countryBorders) : map.removeLayer(countryBorders);
-            document.getElementById('chkState').onchange = (e) => e.target.checked ? map.addLayer(malaysiaStates) : map.removeLayer(malaysiaStates);
+            document.getElementById('chkGrid').onchange = e => e.target.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer);
+            document.getElementById('chkCountry').onchange = e => e.target.checked ? map.addLayer(countryBorders) : map.removeLayer(countryBorders);
+            document.getElementById('chkState').onchange = e => e.target.checked ? map.addLayer(malaysiaStates) : map.removeLayer(malaysiaStates);
 
-            // Date Multi-Select Logic (Limit to 3)
-            const dateSelect = document.getElementById('dateSelect');
-            dateSelect.onchange = () => {
-                const selected = Array.from(dateSelect.selectedOptions);
-                if (selected.length > 3) {
-                    alert("Please select a maximum of 3 days for animation.");
-                    selected[selected.length - 1].selected = false; 
-                }
-            };
-
-            // Play / Animate Logic connecting to GribStream API
-            document.getElementById('playBtn').onclick = async () => {
-                const model = document.querySelector('input[name="model"]:checked').value;
-                const param = document.querySelector('input[name="param"]:checked').value;
-                const dates = Array.from(dateSelect.selectedOptions).map(opt => opt.value);
-
-                if (dates.length === 0) return alert("Please select at least one date.");
-
-                // Update Legend visually
-                updateLegend(param);
-
-                alert(`Initiating API Request to GribStream...\nModel: ${model.toUpperCase()}\nParameter: ${param}\nDates: ${dates.join(', ')}`);
-
-                // Standard GribStream API request structure for a specific coordinate grid
-                const payload = {
-                    "fromTime": `${dates[0]}T00:00:00Z`,
-                    "untilTime": `${dates[dates.length - 1]}T23:59:59Z`,
-                    "grid": { "north": 8.0, "south": 0.0, "west": 99.0, "east": 120.0, "step": 1.0 },
-                    "variables": [{ "name": param, "level": "surface" }] 
-                };
-
-                try {
-                    // API Call Template (Will execute if valid endpoint/CORS allows)
-                    const response = await fetch(`https://gribstream.com/api/v2/${model}/timeseries`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${GRIBSTREAM_API_TOKEN}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if(response.ok) {
-                        const rawData = await response.json();
-                        console.log("Data Received:", rawData);
-                        // Future implementation: interpolate raw JSON grid points onto a canvas layer here.
-                    } else {
-                        console.error("API Error:", response.status, response.statusText);
+            // Date Checkbox Limiter (Max 3)
+            const dateChecks = document.querySelectorAll('input[name="f_date"]');
+            dateChecks.forEach(box => {
+                box.addEventListener('change', function() {
+                    const checkedCount = document.querySelectorAll('input[name="f_date"]:checked').length;
+                    if (checkedCount > 3) {
+                        this.checked = false;
+                        alert("You can only select up to 3 days maximum.");
                     }
-                } catch (err) {
-                    console.error("Network or CORS Error fetching from GribStream:", err);
-                }
+                });
+            });
+
+            // Play Forecast Animation
+            document.getElementById('playBtn').onclick = () => {
+                const param = document.querySelector('input[name="param"]:checked').value;
+                const dates = Array.from(document.querySelectorAll('input[name="f_date"]:checked')).map(cb => cb.value);
+
+                if (dates.length === 0) return alert("Please check at least one date.");
+
+                updateLegend(param);
+                runForecastAnimation(param, dates);
             };
         });
 
-        // 7. Legend Management Function
+        // Legend UI Updater
         function updateLegend(param) {
-            const legendBox = document.getElementById('legendBox');
-            const legendTitle = document.getElementById('legendTitle');
-            const legendScale = document.getElementById('legendScale');
-            const legendLabels = document.getElementById('legendLabels');
-            
+            const legendBox = document.getElementById('legendBox'), legendTitle = document.getElementById('legendTitle');
+            const legendScale = document.getElementById('legendScale'), legendLabels = document.getElementById('legendLabels');
             legendBox.style.display = 'block';
 
-            if (param === 'TMP') { // Temperature
+            if (param === 'TMP') { 
                 legendTitle.innerText = "Temperature (°C)";
                 legendScale.style.background = "linear-gradient(to right, #0000ff, #00ffff, #ffff00, #ff0000)";
                 legendLabels.innerHTML = `<span>0°</span><span>15°</span><span>30°</span><span>40°+</span>`;
-            } else if (param === 'APCP') { // Precipitation
+            } else if (param === 'APCP') { 
                 legendTitle.innerText = "Precipitation (mm)";
                 legendScale.style.background = "linear-gradient(to right, #ffffff, #00ffff, #0000ff, #ff00ff)";
                 legendLabels.innerHTML = `<span>0</span><span>10</span><span>25</span><span>50+</span>`;
-            } else if (param === 'WIND') { // Wind
+            } else if (param === 'WIND') { 
                 legendTitle.innerText = "Wind Speed (knots)";
                 legendScale.style.background = "linear-gradient(to right, #a1d99b, #31a354, #ffffcc, #fd8d3c, #e31a1c)";
                 legendLabels.innerHTML = `<span>0</span><span>20</span><span>40</span><span>60+</span>`;
+            }
+        }
+
+        // Render & Animate Visual Spatial Data
+        async function runForecastAnimation(param, dates) {
+            const btn = document.getElementById('playBtn');
+            const banner = document.getElementById('dateBanner');
+            btn.disabled = true; btn.innerText = "Animating...";
+            
+            // Loop through selected dates with a delay
+            for (let i = 0; i < dates.length; i++) {
+                banner.style.display = 'block';
+                banner.innerText = `Forecast: ${dates[i]}`;
+                
+                forecastVisualLayer.clearLayers();
+                
+                // Generate a visual grid representing the data
+                for(let lat = -10; lat <= 20; lat += 2) {
+                    for(let lon = 95; lon <= 120; lon += 2) {
+                        let color = getMockColor(param, lat, i);
+                        L.rectangle([[lat, lon], [lat+2, lon+2]], { color: "transparent", fillColor: color, fillOpacity: 0.45 }).addTo(forecastVisualLayer);
+                    }
+                }
+                
+                // Wait 1.5 seconds before showing next day
+                await new Promise(r => setTimeout(r, 1500));
+            }
+            
+            btn.disabled = false; btn.innerText = "Play / Animate";
+            setTimeout(() => { banner.style.display = 'none'; }, 2000);
+        }
+
+        // Color logic to simulate forecast patterns changing
+        function getMockColor(param, lat, dayIndex) {
+            let val = Math.random(); 
+            if (param === 'TMP') { // Higher temps near equator (lat 0-5)
+                return (lat > 0 && lat < 10) ? (val > 0.5 ? '#ff0000' : '#ffff00') : '#00ffff'; 
+            } else if (param === 'APCP') { // Random rain blobs shifting by day
+                return (val > (0.6 - (dayIndex * 0.1))) ? '#0000ff' : 'transparent';
+            } else { // Wind
+                return val > 0.7 ? '#e31a1c' : (val > 0.4 ? '#ffffcc' : 'transparent');
             }
         }
     </script>
