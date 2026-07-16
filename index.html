@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Pilot GIS Forecast Web</title>
     <meta charset="utf-8" />
@@ -9,17 +9,65 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body, html { margin: 0; padding: 0; }
+        body, html { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { height: 100vh; width: 100%; }
         
-        /* Styling for the custom headers inside the layer control */
-        .layer-control-header {
-            font-weight: bold;
-            font-size: 14px;
-            margin: 5px 0 5px 0;
-            padding-bottom: 2px;
-            border-bottom: 1px solid #ccc;
+        /* Custom UI Panel Styling */
+        .custom-control-panel {
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            min-width: 180px;
         }
+        .panel-header {
+            font-size: 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        .toggle-btn {
+            background-color: #f4f4f4;
+            border: 1px solid #999;
+            border-radius: 3px;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            font-weight: bold;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .toggle-btn:hover { background-color: #e0e0e0; }
+        .section-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin: 8px 0 4px 0;
+            color: #333;
+        }
+        .layer-item {
+            font-size: 13px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+        }
+        .layer-item input {
+            margin-right: 8px;
+        }
+        
+        /* Grid Tooltip Styling */
+        .grid-tooltip {
+            background: rgba(0, 0, 0, 0.75);
+            border: none;
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+        .leaflet-tooltip-left.grid-tooltip::before { border-left-color: rgba(0, 0, 0, 0.75); }
+        .leaflet-tooltip-right.grid-tooltip::before { border-right-color: rgba(0, 0, 0, 0.75); }
     </style>
 </head>
 <body>
@@ -30,92 +78,134 @@
     <script>
         // 1. Define Base Maps
         var esriOcean = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri',
-            maxZoom: 13
+            maxZoom: 13,
+            attribution: 'Tiles &copy; Esri'
         });
-        var esriOceanLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 13
-        });
+        var esriOceanLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 });
         var blueOceanMap = L.layerGroup([esriOcean, esriOceanLabels]);
 
         var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri'
         });
-        var esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 20
-        });
+        var esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 });
         var satelliteMap = L.layerGroup([esriSatellite, esriSatLabels]);
 
         // 2. Initialize the Map
         var map = L.map('map', {
             center: [4.2105, 101.9758], // Centered on Malaysia
             zoom: 5,
+            zoomControl: true,
             layers: [blueOceanMap] // Default base layer
         });
 
-        // 3. Create the 5 Degree Grid Overlay
+        // 3. Create the 5 Degree Grid Overlay (With Hover Sensitivity/Tooltips)
         var gridLayer = L.layerGroup();
-        // Generate Latitude lines
+        
+        // Latitude lines
         for (var lat = -90; lat <= 90; lat += 5) {
-            L.polyline([[lat, -180], [lat, 180]], {color: '#888', weight: 1, opacity: 0.6, dashArray: '4, 4'}).addTo(gridLayer);
+            var latLabel = lat === 0 ? "Equator" : Math.abs(lat) + "° " + (lat > 0 ? "N" : "S");
+            var latLine = L.polyline([[lat, -180], [lat, 180]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            latLine.bindTooltip("Latitude: " + latLabel, {sticky: true, className: 'grid-tooltip'});
+            gridLayer.addLayer(latLine);
         }
-        // Generate Longitude lines
+        // Longitude lines
         for (var lon = -180; lon <= 180; lon += 5) {
-            L.polyline([[-90, lon], [90, lon]], {color: '#888', weight: 1, opacity: 0.6, dashArray: '4, 4'}).addTo(gridLayer);
+            var lonLabel = lon === 0 ? "Prime Meridian" : Math.abs(lon) + "° " + (lon > 0 ? "E" : "W");
+            var lonLine = L.polyline([[-90, lon], [90, lon]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            lonLine.bindTooltip("Longitude: " + lonLabel, {sticky: true, className: 'grid-tooltip'});
+            gridLayer.addLayer(lonLine);
         }
 
-        // 4. Create Country Borders Overlay (Fetches open-source GeoJSON)
+        // 4. Create Country Borders Overlay (Higher Resolution)
         var countryBorders = L.layerGroup();
-        fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
             .then(response => response.json())
             .then(data => {
                 L.geoJSON(data, {
-                    style: { color: "#222", weight: 1.5, fillOpacity: 0 }
+                    style: { color: "#111", weight: 1.5, fillOpacity: 0 }
                 }).addTo(countryBorders);
             });
 
-        // 5. Create Malaysia States Overlay (Fetches open-source GeoJSON)
+        // 5. Create Malaysia States Overlay (Working Repository)
         var malaysiaStates = L.layerGroup();
-        fetch('https://raw.githubusercontent.com/TindakMalaysia/maps/master/malaysia/geojson/malaysia.state.geojson')
+        fetch('https://gist.githubusercontent.com/jerryong/2b3952ba8311a3b5a19cb2b6e1596e73/raw/c5553e18a0edfc3a0bcf60fc313b2c2e0fce61ec/malaysia.geojson')
             .then(response => response.json())
             .then(data => {
                 L.geoJSON(data, {
-                    style: { color: "#ff0000", weight: 1.5, fillOpacity: 0.1 }
+                    style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 }
                 }).addTo(malaysiaStates);
             });
 
-        // 6. Define Layer Controls Object
-        var baseMaps = {
-            "ESRI Blue Ocean": blueOceanMap,
-            "ESRI Satellite": satelliteMap
-        };
+        // 6. Build the Custom Control Panel HTML
+        var CustomControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function (map) {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control custom-control-panel');
+                L.DomEvent.disableClickPropagation(container); // Prevent map clicks
 
-        var overlayMaps = {
-            "5 Degree Grid": gridLayer,
-            "Country Borders": countryBorders,
-            "Malaysia States": malaysiaStates
-        };
+                container.innerHTML = `
+                    <div class="panel-header">
+                        <span>Map Controls</span>
+                        <button id="toggleBtn" class="toggle-btn">-</button>
+                    </div>
+                    <div id="panelContent">
+                        <div class="section-title">Base Map</div>
+                        <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> ESRI Blue Ocean</label>
+                        <label class="layer-item"><input type="radio" name="basemap" value="sat"> ESRI Satellite</label>
+                        
+                        <div class="section-title">Overlays</div>
+                        <label class="layer-item"><input type="checkbox" id="chkGrid"> 5 Degree Grid</label>
+                        <label class="layer-item"><input type="checkbox" id="chkCountry"> Country Borders</label>
+                        <label class="layer-item"><input type="checkbox" id="chkState"> Malaysia States</label>
+                    </div>
+                `;
+                return container;
+            }
+        });
+        map.addControl(new CustomControl());
 
-        // 7. Add standard Leaflet control (combines base maps as radio buttons and overlays as checkboxes)
-        var layerControl = L.control.layers(baseMaps, overlayMaps, {
-            position: 'topright',
-            collapsed: false
-        }).addTo(map);
+        // 7. Add Functionality to Custom Control Panel
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Toggle Append/Unappend Panel (+ / -)
+            var toggleBtn = document.getElementById('toggleBtn');
+            var panelContent = document.getElementById('panelContent');
+            
+            toggleBtn.addEventListener('click', function() {
+                if (panelContent.style.display === 'none') {
+                    panelContent.style.display = 'block';
+                    toggleBtn.innerHTML = '-';
+                } else {
+                    panelContent.style.display = 'none';
+                    toggleBtn.innerHTML = '+';
+                }
+            });
 
-        // 8. Inject Titles into the control panel
-        // This DOM manipulation adds "Base Map" and "Overlays" headers inside the Leaflet control box
-        var baseMapContainer = document.querySelector('.leaflet-control-layers-base');
-        var overlayContainer = document.querySelector('.leaflet-control-layers-overlays');
+            // Base Map Switching Logic
+            var radioButtons = document.querySelectorAll('input[name="basemap"]');
+            radioButtons.forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'ocean') {
+                        map.addLayer(blueOceanMap);
+                        map.removeLayer(satelliteMap);
+                    } else if (this.value === 'sat') {
+                        map.addLayer(satelliteMap);
+                        map.removeLayer(blueOceanMap);
+                    }
+                });
+            });
 
-        var baseTitle = document.createElement('div');
-        baseTitle.innerHTML = "Base Map";
-        baseTitle.className = 'layer-control-header';
-        baseMapContainer.insertBefore(baseTitle, baseMapContainer.firstChild);
-
-        var overlayTitle = document.createElement('div');
-        overlayTitle.innerHTML = "Overlays";
-        overlayTitle.className = 'layer-control-header';
-        overlayContainer.insertBefore(overlayTitle, overlayContainer.firstChild);
+            // Overlays Toggle Logic
+            document.getElementById('chkGrid').addEventListener('change', function() {
+                this.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer);
+            });
+            document.getElementById('chkCountry').addEventListener('change', function() {
+                this.checked ? map.addLayer(countryBorders) : map.removeLayer(countryBorders);
+            });
+            document.getElementById('chkState').addEventListener('change', function() {
+                this.checked ? map.addLayer(malaysiaStates) : map.removeLayer(malaysiaStates);
+            });
+        });
 
     </script>
 </body>
