@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wind Data Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. Define Base Maps
+        // ESRI Blue Ocean with labels
+        var esriOcean = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, and Esri',
+            maxZoom: 13
+        });
+        var esriOceanLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 13
+        });
+        var blueOceanMap = L.layerGroup([esriOcean, esriOceanLabels]);
+
+        // ESRI Satellite with labels
+        var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+        var esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 20
+        });
+        var satelliteMap = L.layerGroup([esriSatellite, esriSatLabels]);
+
+        // 2. Initialize the Map
+        var map = L.map('map', {
+            center: [3.1, 101.6], // Centered roughly near Malaysia based on context
+            zoom: 5,
+            layers: [blueOceanMap] // Default base layer
+        });
+
+        // 3. Define Base Map Controls (Group 1)
+        var baseMaps = {
+            "ESRI Blue Ocean": blueOceanMap,
+            "ESRI Satellite": satelliteMap
+        };
+
+        // 4. Define Wind Data Layers (Group 2)
+        // Note: You would integrate a plugin like leaflet-velocity here to parse your JSON from 'uvwindoutput'
+        var windLayer10m = L.layerGroup(); // Placeholder for 10m wind
+        var windLayer50m = L.layerGroup(); // Placeholder for 50m wind
+
+        var overlayMaps = {
+            "Wind 10m Layer": windLayer10m,
+            "Wind 50m Layer": windLayer50m
+        };
+
+        // 5. Add controls to the map
+        // Add the base map option in one control button
+        L.control.layers(baseMaps, null, {position: 'topright'}).addTo(map);
+        
+        // Add the wind data in another user control button
+        L.control.layers(null, overlayMaps, {position: 'topleft'}).addTo(map);
+
+    </script>
+</body>
+</html>
