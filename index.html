@@ -15,10 +15,12 @@
         /* Custom UI Panel Styling */
         .custom-control-panel {
             background-color: white;
-            padding: 10px;
+            padding: 15px;
             border-radius: 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            min-width: 180px;
+            width: 220px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .panel-header {
             font-size: 15px;
@@ -28,7 +30,7 @@
             align-items: center;
             border-bottom: 2px solid #ccc;
             padding-bottom: 5px;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
         .toggle-btn {
             background-color: #f4f4f4;
@@ -38,36 +40,24 @@
             width: 24px;
             height: 24px;
             font-weight: bold;
-            font-size: 16px;
-            line-height: 1;
         }
-        .toggle-btn:hover { background-color: #e0e0e0; }
-        .section-title {
-            font-weight: bold;
-            font-size: 13px;
-            margin: 8px 0 4px 0;
-            color: #333;
-        }
-        .layer-item {
-            font-size: 13px;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-        }
-        .layer-item input {
-            margin-right: 8px;
-        }
+        .section-title { font-weight: bold; font-size: 14px; margin: 10px 0 5px 0; color: #111; border-bottom: 1px solid #eee; }
+        .forecast-section { margin-bottom: 10px; font-size: 13px; }
+        .layer-item { font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; cursor: pointer; }
+        .layer-item input { margin-right: 8px; }
         
+        select[multiple] { width: 100%; padding: 5px; font-family: inherit; border: 1px solid #ccc; border-radius: 3px; }
+        .play-btn { width: 100%; padding: 8px; background-color: #0078A8; color: white; border: none; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; }
+        .play-btn:hover { background-color: #005a7f; }
+
+        /* Dynamic Legend Styling */
+        .legend-box { margin-top: 15px; padding-top: 10px; border-top: 2px solid #ccc; display: none; }
+        .legend-title { font-weight: bold; font-size: 12px; margin-bottom: 5px; text-align: center; }
+        .legend-scale { width: 100%; height: 15px; border-radius: 3px; border: 1px solid #999; }
+        .legend-labels { display: flex; justify-content: space-between; font-size: 10px; margin-top: 3px; }
+
         /* Grid Tooltip Styling */
-        .grid-tooltip {
-            background: rgba(0, 0, 0, 0.75);
-            border: none;
-            color: white;
-            font-weight: bold;
-            border-radius: 4px;
-        }
-        .leaflet-tooltip-left.grid-tooltip::before { border-left-color: rgba(0, 0, 0, 0.75); }
-        .leaflet-tooltip-right.grid-tooltip::before { border-right-color: rgba(0, 0, 0, 0.75); }
+        .grid-tooltip { background: rgba(0, 0, 0, 0.75); border: none; color: white; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -76,78 +66,58 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Define Base Maps
-        var esriOcean = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 13,
-            attribution: 'Tiles &copy; Esri'
-        });
-        var esriOceanLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 });
-        var blueOceanMap = L.layerGroup([esriOcean, esriOceanLabels]);
+        // --- SECURITY WARNING ---
+        // Placing your API token here is NOT secure for public deployment on GitHub Pages.
+        // Anyone can view the page source and copy this token. 
+        const GRIBSTREAM_API_TOKEN = "dc599c656f331c4c92c25c3d4855f0bdcfe6261c";
 
-        var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
-        });
-        var esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 });
-        var satelliteMap = L.layerGroup([esriSatellite, esriSatLabels]);
+        // 1. Define Base Maps
+        const esriOcean = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13, attribution: 'Tiles &copy; Esri' });
+        const esriOceanLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 });
+        const blueOceanMap = L.layerGroup([esriOcean, esriOceanLabels]);
+        const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' });
+        const esriSatLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20 });
+        const satelliteMap = L.layerGroup([esriSatellite, esriSatLabels]);
 
         // 2. Initialize the Map
-        var map = L.map('map', {
-            center: [4.2105, 101.9758], // Centered on Malaysia
-            zoom: 5,
-            zoomControl: true,
-            layers: [blueOceanMap] // Default base layer
-        });
+        const map = L.map('map', { center: [4.2105, 101.9758], zoom: 5, layers: [blueOceanMap] });
 
-        // 3. Create the 5 Degree Grid Overlay (With Hover Sensitivity/Tooltips)
-        var gridLayer = L.layerGroup();
-        
-        // Latitude lines
-        for (var lat = -90; lat <= 90; lat += 5) {
-            var latLabel = lat === 0 ? "Equator" : Math.abs(lat) + "° " + (lat > 0 ? "N" : "S");
-            var latLine = L.polyline([[lat, -180], [lat, 180]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
-            latLine.bindTooltip("Latitude: " + latLabel, {sticky: true, className: 'grid-tooltip'});
+        // 3. Create Overlays
+        const gridLayer = L.layerGroup();
+        for (let lat = -90; lat <= 90; lat += 5) {
+            let latLine = L.polyline([[lat, -180], [lat, 180]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            latLine.bindTooltip(`Latitude: ${lat}°`, {sticky: true, className: 'grid-tooltip'});
             gridLayer.addLayer(latLine);
         }
-        // Longitude lines
-        for (var lon = -180; lon <= 180; lon += 5) {
-            var lonLabel = lon === 0 ? "Prime Meridian" : Math.abs(lon) + "° " + (lon > 0 ? "E" : "W");
-            var lonLine = L.polyline([[-90, lon], [90, lon]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
-            lonLine.bindTooltip("Longitude: " + lonLabel, {sticky: true, className: 'grid-tooltip'});
+        for (let lon = -180; lon <= 180; lon += 5) {
+            let lonLine = L.polyline([[-90, lon], [90, lon]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            lonLine.bindTooltip(`Longitude: ${lon}°`, {sticky: true, className: 'grid-tooltip'});
             gridLayer.addLayer(lonLine);
         }
 
-        // 4. Create Country Borders Overlay (Higher Resolution)
-        var countryBorders = L.layerGroup();
+        const countryBorders = L.layerGroup();
         fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: { color: "#111", weight: 1.5, fillOpacity: 0 }
-                }).addTo(countryBorders);
-            });
+            .then(res => res.json())
+            .then(data => L.geoJSON(data, { style: { color: "#111", weight: 1.5, fillOpacity: 0 } }).addTo(countryBorders));
 
-        // 5. Create Malaysia States Overlay (Working Repository)
-        var malaysiaStates = L.layerGroup();
+        const malaysiaStates = L.layerGroup();
         fetch('https://gist.githubusercontent.com/jerryong/2b3952ba8311a3b5a19cb2b6e1596e73/raw/c5553e18a0edfc3a0bcf60fc313b2c2e0fce61ec/malaysia.geojson')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 }
-                }).addTo(malaysiaStates);
-            });
+            .then(res => res.json())
+            .then(data => L.geoJSON(data, { style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 } }).addTo(malaysiaStates));
 
-        // 6. Build the Custom Control Panel HTML
-        var CustomControl = L.Control.extend({
+        // 4. Forecast Data Layer Placeholder
+        let activeForecastLayer = L.layerGroup().addTo(map);
+
+        // 5. Build Custom Control Panel
+        const CustomControl = L.Control.extend({
             options: { position: 'topright' },
-            onAdd: function (map) {
-                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control custom-control-panel');
-                L.DomEvent.disableClickPropagation(container); // Prevent map clicks
+            onAdd: function () {
+                const container = L.DomUtil.create('div', 'custom-control-panel');
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container); 
 
                 container.innerHTML = `
-                    <div class="panel-header">
-                        <span>Map Controls</span>
-                        <button id="toggleBtn" class="toggle-btn">-</button>
-                    </div>
+                    <div class="panel-header"><span>Map Controls</span><button id="toggleBtn" class="toggle-btn">-</button></div>
                     <div id="panelContent">
                         <div class="section-title">Base Map</div>
                         <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> ESRI Blue Ocean</label>
@@ -157,6 +127,38 @@
                         <label class="layer-item"><input type="checkbox" id="chkGrid"> 5 Degree Grid</label>
                         <label class="layer-item"><input type="checkbox" id="chkCountry"> Country Borders</label>
                         <label class="layer-item"><input type="checkbox" id="chkState"> Malaysia States</label>
+
+                        <div class="section-title">Control for forecast data</div>
+                        <div class="forecast-section">
+                            <b>Models</b><br>
+                            <label class="layer-item"><input type="radio" name="model" value="gfs" checked> GFS</label>
+                            <label class="layer-item"><input type="radio" name="model" value="ecmwf"> ECMWF</label>
+                        </div>
+                        <div class="forecast-section">
+                            <b>Parameter</b><br>
+                            <label class="layer-item"><input type="radio" name="param" value="APCP"> Precipitation</label>
+                            <label class="layer-item"><input type="radio" name="param" value="TMP" checked> Temperature</label>
+                            <label class="layer-item"><input type="radio" name="param" value="WIND"> Wind</label>
+                        </div>
+                        <div class="forecast-section">
+                            <b>Date (Max 3 day)</b><br>
+                            <select id="dateSelect" multiple size="6">
+                                <option value="2026-07-17">17 July 2026</option>
+                                <option value="2026-07-18">18 July 2026</option>
+                                <option value="2026-07-19">19 July 2026</option>
+                                <option value="2026-07-20">20 July 2026</option>
+                                <option value="2026-07-21">21 July 2026</option>
+                                <option value="2026-07-22">22 July 2026</option>
+                            </select>
+                            <button id="playBtn" class="play-btn">Play / Animate</button>
+                        </div>
+
+                        <!-- Dynamic Legend -->
+                        <div id="legendBox" class="legend-box">
+                            <div id="legendTitle" class="legend-title">Parameter</div>
+                            <div id="legendScale" class="legend-scale"></div>
+                            <div id="legendLabels" class="legend-labels"></div>
+                        </div>
                     </div>
                 `;
                 return container;
@@ -164,49 +166,107 @@
         });
         map.addControl(new CustomControl());
 
-        // 7. Add Functionality to Custom Control Panel
-        document.addEventListener('DOMContentLoaded', function() {
+        // 6. UI Logic and Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
             
-            // Toggle Append/Unappend Panel (+ / -)
-            var toggleBtn = document.getElementById('toggleBtn');
-            var panelContent = document.getElementById('panelContent');
-            
-            toggleBtn.addEventListener('click', function() {
-                if (panelContent.style.display === 'none') {
-                    panelContent.style.display = 'block';
-                    toggleBtn.innerHTML = '-';
-                } else {
-                    panelContent.style.display = 'none';
-                    toggleBtn.innerHTML = '+';
+            // Toggle panel visibility
+            const toggleBtn = document.getElementById('toggleBtn');
+            const panelContent = document.getElementById('panelContent');
+            toggleBtn.onclick = () => {
+                const isHidden = panelContent.style.display === 'none';
+                panelContent.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.innerHTML = isHidden ? '-' : '+';
+            };
+
+            // Base Map & Overlay switching
+            document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+                radio.onchange = (e) => {
+                    if (e.target.value === 'ocean') { map.addLayer(blueOceanMap); map.removeLayer(satelliteMap); }
+                    else { map.addLayer(satelliteMap); map.removeLayer(blueOceanMap); }
+                };
+            });
+            document.getElementById('chkGrid').onchange = (e) => e.target.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer);
+            document.getElementById('chkCountry').onchange = (e) => e.target.checked ? map.addLayer(countryBorders) : map.removeLayer(countryBorders);
+            document.getElementById('chkState').onchange = (e) => e.target.checked ? map.addLayer(malaysiaStates) : map.removeLayer(malaysiaStates);
+
+            // Date Multi-Select Logic (Limit to 3)
+            const dateSelect = document.getElementById('dateSelect');
+            dateSelect.onchange = () => {
+                const selected = Array.from(dateSelect.selectedOptions);
+                if (selected.length > 3) {
+                    alert("Please select a maximum of 3 days for animation.");
+                    selected[selected.length - 1].selected = false; 
                 }
-            });
+            };
 
-            // Base Map Switching Logic
-            var radioButtons = document.querySelectorAll('input[name="basemap"]');
-            radioButtons.forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    if (this.value === 'ocean') {
-                        map.addLayer(blueOceanMap);
-                        map.removeLayer(satelliteMap);
-                    } else if (this.value === 'sat') {
-                        map.addLayer(satelliteMap);
-                        map.removeLayer(blueOceanMap);
+            // Play / Animate Logic connecting to GribStream API
+            document.getElementById('playBtn').onclick = async () => {
+                const model = document.querySelector('input[name="model"]:checked').value;
+                const param = document.querySelector('input[name="param"]:checked').value;
+                const dates = Array.from(dateSelect.selectedOptions).map(opt => opt.value);
+
+                if (dates.length === 0) return alert("Please select at least one date.");
+
+                // Update Legend visually
+                updateLegend(param);
+
+                alert(`Initiating API Request to GribStream...\nModel: ${model.toUpperCase()}\nParameter: ${param}\nDates: ${dates.join(', ')}`);
+
+                // Standard GribStream API request structure for a specific coordinate grid
+                const payload = {
+                    "fromTime": `${dates[0]}T00:00:00Z`,
+                    "untilTime": `${dates[dates.length - 1]}T23:59:59Z`,
+                    "grid": { "north": 8.0, "south": 0.0, "west": 99.0, "east": 120.0, "step": 1.0 },
+                    "variables": [{ "name": param, "level": "surface" }] 
+                };
+
+                try {
+                    // API Call Template (Will execute if valid endpoint/CORS allows)
+                    const response = await fetch(`https://gribstream.com/api/v2/${model}/timeseries`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${GRIBSTREAM_API_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if(response.ok) {
+                        const rawData = await response.json();
+                        console.log("Data Received:", rawData);
+                        // Future implementation: interpolate raw JSON grid points onto a canvas layer here.
+                    } else {
+                        console.error("API Error:", response.status, response.statusText);
                     }
-                });
-            });
-
-            // Overlays Toggle Logic
-            document.getElementById('chkGrid').addEventListener('change', function() {
-                this.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer);
-            });
-            document.getElementById('chkCountry').addEventListener('change', function() {
-                this.checked ? map.addLayer(countryBorders) : map.removeLayer(countryBorders);
-            });
-            document.getElementById('chkState').addEventListener('change', function() {
-                this.checked ? map.addLayer(malaysiaStates) : map.removeLayer(malaysiaStates);
-            });
+                } catch (err) {
+                    console.error("Network or CORS Error fetching from GribStream:", err);
+                }
+            };
         });
 
+        // 7. Legend Management Function
+        function updateLegend(param) {
+            const legendBox = document.getElementById('legendBox');
+            const legendTitle = document.getElementById('legendTitle');
+            const legendScale = document.getElementById('legendScale');
+            const legendLabels = document.getElementById('legendLabels');
+            
+            legendBox.style.display = 'block';
+
+            if (param === 'TMP') { // Temperature
+                legendTitle.innerText = "Temperature (°C)";
+                legendScale.style.background = "linear-gradient(to right, #0000ff, #00ffff, #ffff00, #ff0000)";
+                legendLabels.innerHTML = `<span>0°</span><span>15°</span><span>30°</span><span>40°+</span>`;
+            } else if (param === 'APCP') { // Precipitation
+                legendTitle.innerText = "Precipitation (mm)";
+                legendScale.style.background = "linear-gradient(to right, #ffffff, #00ffff, #0000ff, #ff00ff)";
+                legendLabels.innerHTML = `<span>0</span><span>10</span><span>25</span><span>50+</span>`;
+            } else if (param === 'WIND') { // Wind
+                legendTitle.innerText = "Wind Speed (knots)";
+                legendScale.style.background = "linear-gradient(to right, #a1d99b, #31a354, #ffffcc, #fd8d3c, #e31a1c)";
+                legendLabels.innerHTML = `<span>0</span><span>20</span><span>40</span><span>60+</span>`;
+            }
+        }
     </script>
 </body>
 </html>
