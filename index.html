@@ -43,9 +43,9 @@
         /* Toggle Button attached to the side */
         .toggle-btn-side {
             background-color: #f4f4f4; border: 1px solid #999; border-left: none; border-radius: 0 5px 5px 0;
-            cursor: pointer; width: 26px; height: 44px; font-size: 14px;
+            cursor: pointer; min-width: 26px; height: 44px; font-size: 14px;
             display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            color: #333;
+            color: #333; padding: 0 8px; white-space: nowrap; transition: all 0.3s ease-in-out; font-weight: bold;
         }
         .toggle-btn-side:hover {
             background-color: #e2e2e2;
@@ -192,7 +192,7 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Toggle button to append/close sideways using a Triangle (◀ / ▶) -->
+                    <!-- Toggle button to append/close sideways -->
                     <button id="toggleBtn" class="toggle-btn-side">◀</button>
                 `;
                 return wrapper;
@@ -205,11 +205,13 @@
             const toggleBtn = document.getElementById('toggleBtn');
             const controlPanel = document.getElementById('controlPanel');
             
-            // Left-to-right append toggle logic with triangle shapes
+            // Left-to-right append toggle logic with triangle shapes and text
             toggleBtn.onclick = () => {
                 controlPanel.classList.toggle('collapsed');
                 const isHidden = controlPanel.classList.contains('collapsed');
-                toggleBtn.innerHTML = isHidden ? '▶' : '◀';
+                
+                // Show "Option ▶" when closed, just "◀" when open
+                toggleBtn.innerHTML = isHidden ? 'Option ▶' : '◀';
             };
 
             // Base Map & Overlays Toggle
