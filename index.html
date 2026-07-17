@@ -12,18 +12,48 @@
         body, html { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { height: 100vh; width: 100%; }
         
-        /* Custom UI Panel Styling */
-        .custom-control-panel {
-            background-color: white; padding: 15px; border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4); width: 230px; max-height: 90vh; overflow-y: auto;
+        /* Flex Wrapper for Left-to-Right Toggle */
+        .custom-control-wrapper {
+            display: flex;
+            align-items: flex-start;
         }
+
+        /* Sliding Panel Styling */
+        .custom-control-panel {
+            background-color: white; 
+            border-radius: 5px 0 0 5px;
+            box-shadow: -2px 2px 5px rgba(0,0,0,0.4); 
+            max-width: 300px; /* Max width to allow transition */
+            overflow: hidden; 
+            transition: max-width 0.3s ease-in-out;
+        }
+
+        .custom-control-panel.collapsed {
+            max-width: 0; /* Collapses to the left */
+        }
+
+        /* Inner container maintains fixed width so content doesn't squish during slide */
+        .panel-inner {
+            width: 230px; 
+            padding: 15px;
+            max-height: 90vh; 
+            overflow-y: auto;
+        }
+
+        /* Toggle Button attached to the side */
+        .toggle-btn-side {
+            background-color: #f4f4f4; border: 1px solid #999; border-left: none; border-radius: 0 5px 5px 0;
+            cursor: pointer; width: 26px; height: 44px; font-weight: bold; font-size: 18px;
+            display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        .toggle-btn-side:hover {
+            background-color: #e2e2e2;
+        }
+
         .panel-header {
             font-size: 15px; font-weight: bold; display: flex; justify-content: space-between;
             align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-bottom: 10px;
-        }
-        .toggle-btn {
-            background-color: #f4f4f4; border: 1px solid #999; border-radius: 3px;
-            cursor: pointer; width: 24px; height: 24px; font-weight: bold;
         }
         .section-title { font-weight: bold; font-size: 14px; margin: 10px 0 5px 0; color: #111; border-bottom: 1px solid #eee; }
         .forecast-section { margin-bottom: 10px; font-size: 13px; }
@@ -101,56 +131,62 @@
         // Container for active visual forecast
         let forecastVisualLayer = L.layerGroup().addTo(map);
 
-        // 4. Custom Control Panel - Moved to topleft
+        // 4. Custom Control Panel - Set to 'topleft' and styled for horizontal sliding
         const CustomControl = L.Control.extend({
-            options: { position: 'topleft' }, // Set position to the left side
+            options: { position: 'topleft' }, 
             onAdd: function () {
-                const container = L.DomUtil.create('div', 'custom-control-panel');
-                L.DomEvent.disableClickPropagation(container); L.DomEvent.disableScrollPropagation(container); 
+                const wrapper = L.DomUtil.create('div', 'custom-control-wrapper');
+                L.DomEvent.disableClickPropagation(wrapper); L.DomEvent.disableScrollPropagation(wrapper); 
 
-                container.innerHTML = `
-                    <div class="panel-header"><span>Map Controls</span><button id="toggleBtn" class="toggle-btn">-</button></div>
-                    <div id="panelContent">
-                        <div class="section-title">Base Map</div>
-                        <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> ESRI Blue Ocean</label>
-                        <label class="layer-item"><input type="radio" name="basemap" value="sat"> ESRI Satellite</label>
-                        
-                        <div class="section-title">Overlays</div>
-                        <label class="layer-item"><input type="checkbox" id="chkGrid"> 5 Degree Grid</label>
-                        <label class="layer-item"><input type="checkbox" id="chkCountry"> Country Borders</label>
-                        <label class="layer-item"><input type="checkbox" id="chkState"> Malaysia States</label>
+                wrapper.innerHTML = `
+                    <div id="controlPanel" class="custom-control-panel">
+                        <div class="panel-inner">
+                            <div class="panel-header"><span>Map Controls</span></div>
+                            <div id="panelContent">
+                                <div class="section-title">Base Map</div>
+                                <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> ESRI Blue Ocean</label>
+                                <label class="layer-item"><input type="radio" name="basemap" value="sat"> ESRI Satellite</label>
+                                
+                                <div class="section-title">Overlays</div>
+                                <label class="layer-item"><input type="checkbox" id="chkGrid"> 5 Degree Grid</label>
+                                <label class="layer-item"><input type="checkbox" id="chkCountry"> Country Borders</label>
+                                <label class="layer-item"><input type="checkbox" id="chkState"> Malaysia States</label>
 
-                        <div class="section-title">Control for forecast data</div>
-                        <div class="forecast-section"><b>Models</b><br>
-                            <label class="layer-item"><input type="radio" name="model" value="gfs" checked> GFS</label>
-                            <label class="layer-item"><input type="radio" name="model" value="ecmwf"> ECMWF</label>
-                        </div>
-                        <div class="forecast-section"><b>Parameter</b><br>
-                            <label class="layer-item"><input type="radio" name="param" value="APCP"> Precipitation</label>
-                            <label class="layer-item"><input type="radio" name="param" value="TMP" checked> Temperature</label>
-                            <label class="layer-item"><input type="radio" name="param" value="WIND"> Wind</label>
-                        </div>
-                        <div class="forecast-section"><b>Date (Max 3 days)</b><br>
-                            <div class="date-list">
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="17 July 2026"> 17 July 2026</label>
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="18 July 2026"> 18 July 2026</label>
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="19 July 2026"> 19 July 2026</label>
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="20 July 2026"> 20 July 2026</label>
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="21 July 2026"> 21 July 2026</label>
-                                <label class="layer-item"><input type="checkbox" name="f_date" value="22 July 2026"> 22 July 2026</label>
+                                <div class="section-title">Control for forecast data</div>
+                                <div class="forecast-section"><b>Models</b><br>
+                                    <label class="layer-item"><input type="radio" name="model" value="gfs" checked> GFS</label>
+                                    <label class="layer-item"><input type="radio" name="model" value="ecmwf"> ECMWF</label>
+                                </div>
+                                <div class="forecast-section"><b>Parameter</b><br>
+                                    <label class="layer-item"><input type="radio" name="param" value="APCP"> Precipitation</label>
+                                    <label class="layer-item"><input type="radio" name="param" value="TMP" checked> Temperature</label>
+                                    <label class="layer-item"><input type="radio" name="param" value="WIND"> Wind</label>
+                                </div>
+                                <div class="forecast-section"><b>Date (Max 3 days)</b><br>
+                                    <div class="date-list">
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="17 July 2026"> 17 July 2026</label>
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="18 July 2026"> 18 July 2026</label>
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="19 July 2026"> 19 July 2026</label>
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="20 July 2026"> 20 July 2026</label>
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="21 July 2026"> 21 July 2026</label>
+                                        <label class="layer-item"><input type="checkbox" name="f_date" value="22 July 2026"> 22 July 2026</label>
+                                    </div>
+                                    <button id="playBtn" class="play-btn">Play / Animate</button>
+                                </div>
+
+                                <!-- Dynamic Legend -->
+                                <div id="legendBox" class="legend-box">
+                                    <div id="legendTitle" class="legend-title">Parameter</div>
+                                    <div id="legendScale" class="legend-scale"></div>
+                                    <div id="legendLabels" class="legend-labels"></div>
+                                </div>
                             </div>
-                            <button id="playBtn" class="play-btn">Play / Animate</button>
-                        </div>
-
-                        <!-- Dynamic Legend -->
-                        <div id="legendBox" class="legend-box">
-                            <div id="legendTitle" class="legend-title">Parameter</div>
-                            <div id="legendScale" class="legend-scale"></div>
-                            <div id="legendLabels" class="legend-labels"></div>
                         </div>
                     </div>
+                    <!-- Toggle button to append/close sideways -->
+                    <button id="toggleBtn" class="toggle-btn-side">-</button>
                 `;
-                return container;
+                return wrapper;
             }
         });
         map.addControl(new CustomControl());
@@ -158,13 +194,13 @@
         // 5. Logic and Interactivity
         document.addEventListener('DOMContentLoaded', () => {
             const toggleBtn = document.getElementById('toggleBtn');
-            const panelContent = document.getElementById('panelContent');
+            const controlPanel = document.getElementById('controlPanel');
             
-            // Toggle panel append/close using + and - logic
+            // Left-to-right append toggle logic
             toggleBtn.onclick = () => {
-                const isHidden = panelContent.style.display === 'none';
-                panelContent.style.display = isHidden ? 'block' : 'none';
-                toggleBtn.innerHTML = isHidden ? '-' : '+';
+                controlPanel.classList.toggle('collapsed');
+                const isHidden = controlPanel.classList.contains('collapsed');
+                toggleBtn.innerHTML = isHidden ? '+' : '-';
             };
 
             // Base Map & Overlays Toggle
