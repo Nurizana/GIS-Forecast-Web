@@ -43,7 +43,7 @@
         /* Toggle Button attached to the side */
         .toggle-btn-side {
             background-color: #f4f4f4; border: 1px solid #999; border-left: none; border-radius: 0 5px 5px 0;
-            cursor: pointer; width: 26px; height: 44px; font-weight: bold; font-size: 18px;
+            cursor: pointer; width: 26px; height: 44px; font-size: 14px;
             display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             color: #333;
         }
@@ -100,15 +100,24 @@
         // 2. Initialize Map
         const map = L.map('map', { center: [4.2105, 101.9758], zoom: 5, layers: [blueOceanMap] });
 
-        // 3. Create Overlays
+        // Create Custom Panes to control Z-Index
+        // The default overlayPane is 400. We'll set forecast below overlays.
+        map.createPane('forecastPane');
+        map.getPane('forecastPane').style.zIndex = 350;
+        
+        map.createPane('bordersPane');
+        map.getPane('bordersPane').style.zIndex = 450;
+        map.getPane('bordersPane').style.pointerEvents = 'none'; // Ensure it doesn't block map clicks
+
+        // 3. Create Overlays (assigned to 'bordersPane' so they appear on top)
         const gridLayer = L.layerGroup();
         for (let lat = -90; lat <= 90; lat += 5) {
-            let latLine = L.polyline([[lat, -180], [lat, 180]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            let latLine = L.polyline([[lat, -180], [lat, 180]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4', pane: 'bordersPane'});
             latLine.bindTooltip(`Latitude: ${lat}°`, {sticky: true, className: 'grid-tooltip'});
             gridLayer.addLayer(latLine);
         }
         for (let lon = -180; lon <= 180; lon += 5) {
-            let lonLine = L.polyline([[-90, lon], [90, lon]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4'});
+            let lonLine = L.polyline([[-90, lon], [90, lon]], {color: '#555', weight: 1, opacity: 0.6, dashArray: '4, 4', pane: 'bordersPane'});
             lonLine.bindTooltip(`Longitude: ${lon}°`, {sticky: true, className: 'grid-tooltip'});
             gridLayer.addLayer(lonLine);
         }
@@ -116,7 +125,7 @@
         const countryBorders = L.layerGroup();
         fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
             .then(res => res.json())
-            .then(data => L.geoJSON(data, { style: { color: "#111", weight: 1.5, fillOpacity: 0 } }).addTo(countryBorders));
+            .then(data => L.geoJSON(data, { style: { color: "#111", weight: 1.5, fillOpacity: 0 }, pane: 'bordersPane' }).addTo(countryBorders));
 
         // Fixed Malaysia States GeoJSON Source
         const malaysiaStates = L.layerGroup();
@@ -125,7 +134,7 @@
                 if(!res.ok) throw new Error("Network Error");
                 return res.json();
             })
-            .then(data => L.geoJSON(data, { style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 } }).addTo(malaysiaStates))
+            .then(data => L.geoJSON(data, { style: { color: "#ff2a2a", weight: 2, fillOpacity: 0.1 }, pane: 'bordersPane' }).addTo(malaysiaStates))
             .catch(err => console.error("Error loading states:", err));
 
         // Container for active visual forecast
@@ -144,8 +153,8 @@
                             <div class="panel-header"><span>Map Controls</span></div>
                             <div id="panelContent">
                                 <div class="section-title">Base Map</div>
-                                <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> ESRI Blue Ocean</label>
-                                <label class="layer-item"><input type="radio" name="basemap" value="sat"> ESRI Satellite</label>
+                                <label class="layer-item"><input type="radio" name="basemap" value="ocean" checked> Blue Ocean</label>
+                                <label class="layer-item"><input type="radio" name="basemap" value="sat"> Satellite</label>
                                 
                                 <div class="section-title">Overlays</div>
                                 <label class="layer-item"><input type="checkbox" id="chkGrid"> 5 Degree Grid</label>
@@ -183,8 +192,8 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Toggle button to append/close sideways -->
-                    <button id="toggleBtn" class="toggle-btn-side">-</button>
+                    <!-- Toggle button to append/close sideways using a Triangle (◀ / ▶) -->
+                    <button id="toggleBtn" class="toggle-btn-side">◀</button>
                 `;
                 return wrapper;
             }
@@ -196,11 +205,11 @@
             const toggleBtn = document.getElementById('toggleBtn');
             const controlPanel = document.getElementById('controlPanel');
             
-            // Left-to-right append toggle logic
+            // Left-to-right append toggle logic with triangle shapes
             toggleBtn.onclick = () => {
                 controlPanel.classList.toggle('collapsed');
                 const isHidden = controlPanel.classList.contains('collapsed');
-                toggleBtn.innerHTML = isHidden ? '+' : '-';
+                toggleBtn.innerHTML = isHidden ? '▶' : '◀';
             };
 
             // Base Map & Overlays Toggle
@@ -269,11 +278,11 @@
                 
                 forecastVisualLayer.clearLayers();
                 
-                // Generate a visual grid representing the data
+                // Generate a visual grid representing the data. Attached to 'forecastPane' for lower z-index.
                 for(let lat = -10; lat <= 20; lat += 2) {
                     for(let lon = 95; lon <= 120; lon += 2) {
                         let color = getMockColor(param, lat, i);
-                        L.rectangle([[lat, lon], [lat+2, lon+2]], { color: "transparent", fillColor: color, fillOpacity: 0.45 }).addTo(forecastVisualLayer);
+                        L.rectangle([[lat, lon], [lat+2, lon+2]], { color: "transparent", fillColor: color, fillOpacity: 0.45, pane: 'forecastPane' }).addTo(forecastVisualLayer);
                     }
                 }
                 
