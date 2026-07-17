@@ -101,9 +101,9 @@
         // Container for active visual forecast
         let forecastVisualLayer = L.layerGroup().addTo(map);
 
-        // 4. Custom Control Panel
+        // 4. Custom Control Panel - Moved to topleft
         const CustomControl = L.Control.extend({
-            options: { position: 'topright' },
+            options: { position: 'topleft' }, // Set position to the left side
             onAdd: function () {
                 const container = L.DomUtil.create('div', 'custom-control-panel');
                 L.DomEvent.disableClickPropagation(container); L.DomEvent.disableScrollPropagation(container); 
@@ -159,6 +159,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             const toggleBtn = document.getElementById('toggleBtn');
             const panelContent = document.getElementById('panelContent');
+            
+            // Toggle panel append/close using + and - logic
             toggleBtn.onclick = () => {
                 const isHidden = panelContent.style.display === 'none';
                 panelContent.style.display = isHidden ? 'block' : 'none';
